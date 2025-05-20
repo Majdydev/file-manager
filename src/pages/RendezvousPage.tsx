@@ -4,10 +4,21 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import Textarea from "../components/Textarea";
-import Select from "../components/Select";
 import DataTable from "../components/DataTable";
+import Pagination from "../components/Pagination";
 import { Rendezvous, Passion } from "../types";
-import { Plus, Trash2, Edit, Calendar, Check, X } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Edit,
+  Calendar,
+  Check,
+  X,
+  Search,
+  SortAsc,
+  SortDesc,
+  Filter,
+} from "lucide-react";
 
 const RendezvousPage: React.FC = () => {
   const [rendezvous, setRendezvous] = useState<Rendezvous[]>([]);
@@ -22,15 +33,44 @@ const RendezvousPage: React.FC = () => {
   );
   const [error, setError] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [sortField, setSortField] = useState<"passion_name" | "date">("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [filteredRendezvous, setFilteredRendezvous] = useState<Rendezvous[]>(
+    []
+  );
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [showDateFilter, setShowDateFilter] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 7;
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [
+    rendezvous,
+    searchQuery,
+    statusFilter,
+    sortField,
+    sortDirection,
+    startDate,
+    endDate,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, sortField, sortDirection, startDate, endDate]);
 
   const loadData = async () => {
     try {
       const db = getDb();
 
-      // Get all rendezvous with passion names using the new async API
       const allRendezvous = await db.query(`
         SELECT r.*, p.name as passion_name 
         FROM rendezvous r
@@ -38,7 +78,6 @@ const RendezvousPage: React.FC = () => {
         ORDER BY r.date DESC
       `);
 
-      // Get all passions for dropdown using the new async API
       const allPassions = await db.query(
         "SELECT * FROM passions ORDER BY name"
       );
@@ -47,8 +86,88 @@ const RendezvousPage: React.FC = () => {
       setPassions(allPassions);
     } catch (error) {
       console.error("Error loading data:", error);
-      setError("Failed to load data");
+      setError("Échec du chargement des données");
     }
+  };
+
+  const applyFiltersAndSort = () => {
+    let result = [...rendezvous];
+
+    if (statusFilter) {
+      result = result.filter((rendez) => rendez.status === statusFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((rendez) => {
+        const passionName = rendez.passion_name?.toLowerCase() || "";
+        const desc = rendez.description.toLowerCase();
+        return passionName.includes(query) || desc.includes(query);
+      });
+    }
+
+    if (startDate) {
+      const startTimestamp = new Date(startDate).getTime();
+      result = result.filter((rendez) => {
+        const rendezvousDate = new Date(rendez.date).getTime();
+        return rendezvousDate >= startTimestamp;
+      });
+    }
+
+    if (endDate) {
+      const endTimestamp = new Date(endDate);
+      endTimestamp.setDate(endTimestamp.getDate() + 1);
+      result = result.filter((rendez) => {
+        const rendezvousDate = new Date(rendez.date).getTime();
+        return rendezvousDate < endTimestamp.getTime();
+      });
+    }
+
+    result.sort((a, b) => {
+      if (sortField === "passion_name") {
+        const nameA = a.passion_name?.toLowerCase() || "";
+        const nameB = b.passion_name?.toLowerCase() || "";
+        return sortDirection === "asc"
+          ? nameA.localeCompare(nameB)
+          : nameB.localeCompare(nameA);
+      } else {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+      }
+    });
+
+    setFilteredRendezvous(result);
+  };
+
+  const getCurrentPageData = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredRendezvous.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  const totalPages = Math.ceil(filteredRendezvous.length / itemsPerPage);
+
+  const toggleSortDirection = () => {
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+  };
+
+  const changeSortField = (field: "passion_name" | "date") => {
+    if (sortField === field) {
+      toggleSortDirection();
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("");
+    setStartDate("");
+    setEndDate("");
+    setShowDateFilter(false);
+    setSortField("date");
+    setSortDirection("desc");
   };
 
   const resetForm = () => {
@@ -72,7 +191,7 @@ const RendezvousPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passionId || !date) {
-      setError("Passion and date are required");
+      setError("La passion et la date sont requises");
       return;
     }
 
@@ -107,7 +226,7 @@ const RendezvousPage: React.FC = () => {
   };
 
   const handleDeleteRendezvous = async (rendez: Rendezvous) => {
-    if (!confirm(`Are you sure you want to delete this rendezvous?`)) {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ce rendez-vous?`)) {
       return;
     }
 
@@ -157,12 +276,18 @@ const RendezvousPage: React.FC = () => {
     },
     {
       key: "status",
-      header: "Status",
+      header: "Statut",
       render: (rendez: Rendezvous) => {
         const statusColors = {
           pending: "bg-yellow-100 text-yellow-800",
           completed: "bg-green-100 text-green-800",
           canceled: "bg-red-100 text-red-800",
+        };
+
+        const statusText = {
+          pending: "En attente",
+          completed: "Terminé",
+          canceled: "Annulé",
         };
 
         return (
@@ -171,7 +296,7 @@ const RendezvousPage: React.FC = () => {
               statusColors[rendez.status as keyof typeof statusColors]
             }`}
           >
-            {rendez.status}
+            {statusText[rendez.status as keyof typeof statusText]}
           </span>
         );
       },
@@ -227,7 +352,7 @@ const RendezvousPage: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Rendezvous</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Rendez-vous</h1>
         <Button
           variant="primary"
           icon={<Plus size={16} />}
@@ -236,7 +361,7 @@ const RendezvousPage: React.FC = () => {
             setShowForm(!showForm);
           }}
         >
-          {showForm ? "Cancel" : "Add Rendezvous"}
+          {showForm ? "Annuler" : "Ajouter un Rendez-vous"}
         </Button>
       </div>
 
@@ -249,10 +374,137 @@ const RendezvousPage: React.FC = () => {
         </div>
       )}
 
+      <Card className="mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Search input */}
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Rechercher
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+                placeholder="Rechercher par passion ou description"
+              />
+            </div>
+          </div>
+
+          {/* Status filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Filtrer par Statut
+            </label>
+            <div className="flex items-center">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+              >
+                <option value="">Tous les statuts</option>
+                <option value="pending">En attente</option>
+                <option value="completed">Terminé</option>
+                <option value="canceled">Annulé</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Sort controls */}
+          <div className="flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Trier par
+              </label>
+              <button
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                onClick={() => setShowDateFilter(!showDateFilter)}
+              >
+                <Calendar size={16} className="mr-1" />
+                {showDateFilter ? "Masquer filtre date" : "Filtrer par date"}
+              </button>
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                variant={sortField === "passion_name" ? "primary" : "secondary"}
+                className="flex-1 flex justify-center items-center"
+                onClick={() => changeSortField("passion_name")}
+              >
+                {sortField === "passion_name" &&
+                  (sortDirection === "asc" ? (
+                    <SortAsc size={16} className="mr-2" />
+                  ) : (
+                    <SortDesc size={16} className="mr-2" />
+                  ))}
+                Passion
+              </Button>
+
+              <Button
+                variant={sortField === "date" ? "primary" : "secondary"}
+                className="flex-1 flex justify-center items-center"
+                onClick={() => changeSortField("date")}
+              >
+                {sortField === "date" &&
+                  (sortDirection === "asc" ? (
+                    <SortAsc size={16} className="mr-2" />
+                  ) : (
+                    <SortDesc size={16} className="mr-2" />
+                  ))}
+                Date
+              </Button>
+
+              <Button
+                variant="secondary"
+                className="flex-shrink-0"
+                onClick={clearFilters}
+              >
+                Réinitialiser
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Date filter section */}
+        {showDateFilter && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date de début
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date de fin
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+              />
+            </div>
+          </div>
+        )}
+      </Card>
+
       {showForm && (
         <Card
           className="mb-6"
-          title={editing ? "Edit Rendezvous" : "Add New Rendezvous"}
+          title={
+            editing
+              ? "Modifier le Rendez-vous"
+              : "Ajouter un Nouveau Rendez-vous"
+          }
         >
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -267,7 +519,7 @@ const RendezvousPage: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
                     required
                   >
-                    <option value="">Select a passion</option>
+                    <option value="">Sélectionner une passion</option>
                     {passions.map((passion) => (
                       <option key={passion.id} value={passion.id}>
                         {passion.name}
@@ -288,7 +540,7 @@ const RendezvousPage: React.FC = () => {
               <div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
+                    Statut
                   </label>
                   <select
                     value={status}
@@ -299,9 +551,9 @@ const RendezvousPage: React.FC = () => {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="completed">Completed</option>
-                    <option value="canceled">Canceled</option>
+                    <option value="pending">En attente</option>
+                    <option value="completed">Terminé</option>
+                    <option value="canceled">Annulé</option>
                   </select>
                 </div>
 
@@ -316,10 +568,10 @@ const RendezvousPage: React.FC = () => {
 
             <div className="flex justify-end space-x-2 mt-4">
               <Button type="button" variant="secondary" onClick={resetForm}>
-                Cancel
+                Annuler
               </Button>
               <Button type="submit" variant="primary">
-                {editing ? "Update Rendezvous" : "Save Rendezvous"}
+                {editing ? "Mettre à jour" : "Enregistrer"}
               </Button>
             </div>
           </form>
@@ -328,25 +580,40 @@ const RendezvousPage: React.FC = () => {
 
       <Card>
         {rendezvous.length > 0 ? (
-          <DataTable
-            columns={columns}
-            data={rendezvous}
-            keyExtractor={(rendez) => rendez.id.toString()}
-            actions={rendezvousActions}
-          />
+          <>
+            <div className="mb-2 text-sm text-gray-500">
+              {filteredRendezvous.length} rendez-vous trouvé(s)
+              {(searchQuery || statusFilter || startDate || endDate) && (
+                <span> avec les filtres appliqués</span>
+              )}
+            </div>
+            <DataTable
+              columns={columns}
+              data={getCurrentPageData()}
+              keyExtractor={(rendez) => rendez.id.toString()}
+              actions={rendezvousActions}
+            />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </>
         ) : (
           <div className="text-center py-8">
             <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-500 mb-2">
-              No rendezvous yet
+              Aucun rendez-vous
             </h3>
-            <p className="text-gray-400 mb-4">Schedule your first rendezvous</p>
+            <p className="text-gray-400 mb-4">
+              Planifiez votre premier rendez-vous
+            </p>
             <Button
               variant="primary"
               icon={<Plus size={16} />}
               onClick={() => setShowForm(true)}
             >
-              Add Rendezvous
+              Ajouter un Rendez-vous
             </Button>
           </div>
         )}

@@ -755,7 +755,7 @@ var database = Database$1;
 lib.exports = database;
 lib.exports.SqliteError = sqliteError;
 var libExports = lib.exports;
-const { app, BrowserWindow, ipcMain, dialog } = require$$0;
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require$$0;
 const path = require$$1;
 const fs = require$$0$1;
 const isDev = electronIsDev;
@@ -777,6 +777,7 @@ function createWindow() {
       // Also enable remote module
     }
   });
+  mainWindow.setMenu(null);
   const startUrl = isDev ? "http://localhost:5173" : `file://${path.join(__dirname, "../dist/index.html")}`;
   mainWindow.loadURL(startUrl);
   if (isDev) {
@@ -795,6 +796,7 @@ function createWindow() {
   db = new Database(dbPath);
 }
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createWindow();
   app.on("activate", function() {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

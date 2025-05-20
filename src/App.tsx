@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useDatabase } from "./db";
 import Layout from "./components/Layout";
@@ -17,7 +17,9 @@ function App() {
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-t-[#0A2463] border-b-[#0A2463] border-l-transparent border-r-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Initializing database...</p>
+          <p className="text-lg text-gray-600">
+            Initialisation de la base de données...
+          </p>
         </div>
       </div>
     );
@@ -27,9 +29,9 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Erreur</h2>
           <p className="text-gray-700 mb-4">
-            Failed to initialize the database:
+            Échec de l'initialisation de la base de données:
           </p>
           <pre className="bg-gray-100 p-4 rounded overflow-auto text-sm">
             {error.message}

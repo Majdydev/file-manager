@@ -25,7 +25,7 @@ const CategoriesPage: React.FC = () => {
       setCategories(result);
     } catch (error) {
       console.error("Error loading categories:", error);
-      setError("Failed to load categories");
+      setError("Échec du chargement des catégories");
     }
   };
 
@@ -38,7 +38,7 @@ const CategoriesPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryName.trim()) {
-      setError("Category name is required");
+      setError("Le nom de la catégorie est requis");
       return;
     }
 
@@ -67,9 +67,9 @@ const CategoriesPage: React.FC = () => {
         error instanceof Error &&
         error.message.includes("UNIQUE constraint failed")
       ) {
-        setError("A category with this name already exists");
+        setError("Une catégorie avec ce nom existe déjà");
       } else {
-        setError("Failed to save category");
+        setError("Échec de l'enregistrement de la catégorie");
       }
     }
   };
@@ -91,14 +91,14 @@ const CategoriesPage: React.FC = () => {
 
       if (filesCount.count > 0) {
         setError(
-          `Cannot delete: Category "${category.name}" has ${filesCount.count} file(s) associated with it`
+          `Impossible de supprimer: La catégorie "${category.name}" a ${filesCount.count} fichier(s) associé(s)`
         );
         return;
       }
 
       if (
         !confirm(
-          `Are you sure you want to delete the category "${category.name}"?`
+          `Êtes-vous sûr de vouloir supprimer la catégorie "${category.name}"?`
         )
       ) {
         return;
@@ -108,14 +108,14 @@ const CategoriesPage: React.FC = () => {
       loadCategories();
     } catch (error) {
       console.error("Error deleting category:", error);
-      setError("Failed to delete category");
+      setError("Échec de la suppression de la catégorie");
     }
   };
 
   const columns = [
     {
       key: "name",
-      header: "Category Name",
+      header: "Nom de la Catégorie",
       render: (category: Category) => (
         <div className="flex items-center">
           <FolderOpen size={18} className="mr-2 text-blue-500" />
@@ -152,7 +152,7 @@ const CategoriesPage: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Categories</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Catégories</h1>
         <Button
           variant="primary"
           icon={<Plus size={16} />}
@@ -161,7 +161,7 @@ const CategoriesPage: React.FC = () => {
             setShowForm(!showForm);
           }}
         >
-          {showForm ? "Cancel" : "Add Category"}
+          {showForm ? "Annuler" : "Ajouter une Catégorie"}
         </Button>
       </div>
 
@@ -177,23 +177,25 @@ const CategoriesPage: React.FC = () => {
       {showForm && (
         <Card
           className="mb-6"
-          title={editing ? "Edit Category" : "Add New Category"}
+          title={
+            editing ? "Modifier la Catégorie" : "Ajouter une Nouvelle Catégorie"
+          }
         >
           <form onSubmit={handleSubmit}>
             <Input
-              label="Category Name"
+              label="Nom de la Catégorie"
               value={categoryName}
               onChange={(e) => setCategoryName(e.target.value)}
               required
-              placeholder="Enter category name"
+              placeholder="Entrez le nom de la catégorie"
             />
 
             <div className="flex justify-end space-x-2 mt-4">
               <Button type="button" variant="secondary" onClick={resetForm}>
-                Cancel
+                Annuler
               </Button>
               <Button type="submit" variant="primary">
-                {editing ? "Update Category" : "Save Category"}
+                {editing ? "Mettre à jour" : "Enregistrer"}
               </Button>
             </div>
           </form>
@@ -212,17 +214,17 @@ const CategoriesPage: React.FC = () => {
           <div className="text-center py-8">
             <FolderOpen size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-500 mb-2">
-              No categories yet
+              Aucune catégorie
             </h3>
             <p className="text-gray-400 mb-4">
-              Create your first category to organize files
+              Créez votre première catégorie pour organiser les fichiers
             </p>
             <Button
               variant="primary"
               icon={<Plus size={16} />}
               onClick={() => setShowForm(true)}
             >
-              Add Category
+              Ajouter une Catégorie
             </Button>
           </div>
         )}

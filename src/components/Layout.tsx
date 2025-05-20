@@ -17,7 +17,7 @@ const Layout: React.FC = () => {
         <div className="p-6">
           <h1 className="text-2xl font-bold flex items-center">
             <FolderArchive className="mr-2" size={24} />
-            FileManager
+            Office Solution
           </h1>
         </div>
         <nav className="mt-6">
@@ -30,7 +30,7 @@ const Layout: React.FC = () => {
             }
           >
             <LayoutDashboard className="mr-3" size={20} />
-            Dashboard
+            Tableau de Bord
           </NavLink>
           <NavLink
             to="/files"
@@ -41,7 +41,7 @@ const Layout: React.FC = () => {
             }
           >
             <FolderArchive className="mr-3" size={20} />
-            Files
+            Fichiers
           </NavLink>
           <NavLink
             to="/categories"
@@ -52,7 +52,7 @@ const Layout: React.FC = () => {
             }
           >
             <FolderOpen className="mr-3" size={20} />
-            Categories
+            Catégories
           </NavLink>
           <NavLink
             to="/passions"
@@ -74,7 +74,7 @@ const Layout: React.FC = () => {
             }
           >
             <Calendar className="mr-3" size={20} />
-            Rendezvous
+            Rendez-vous
           </NavLink>
           <NavLink
             to="/visits"
@@ -85,7 +85,7 @@ const Layout: React.FC = () => {
             }
           >
             <ClipboardCheck className="mr-3" size={20} />
-            Visits
+            Visites
           </NavLink>
         </nav>
       </div>

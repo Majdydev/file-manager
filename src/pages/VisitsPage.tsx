@@ -5,8 +5,18 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import Textarea from "../components/Textarea";
 import DataTable from "../components/DataTable";
+import Pagination from "../components/Pagination";
 import { Visit, Passion } from "../types";
-import { Plus, Trash2, Edit, ClipboardCheck } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Edit,
+  ClipboardCheck,
+  Search,
+  SortAsc,
+  SortDesc,
+  Calendar,
+} from "lucide-react";
 
 const VisitsPage: React.FC = () => {
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -19,15 +29,33 @@ const VisitsPage: React.FC = () => {
   const [nextVisitDate, setNextVisitDate] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<"passion_name" | "date">("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [filteredVisits, setFilteredVisits] = useState<Visit[]>([]);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [showDateFilter, setShowDateFilter] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 7;
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [visits, searchQuery, sortField, sortDirection, startDate, endDate]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortField, sortDirection, startDate, endDate]);
 
   const loadData = async () => {
     try {
       const db = getDb();
 
-      // Get all visits with passion names using the new async API
       const allVisits = await db.query(`
         SELECT v.*, p.name as passion_name 
         FROM visits v
@@ -35,7 +63,6 @@ const VisitsPage: React.FC = () => {
         ORDER BY v.date DESC
       `);
 
-      // Get all passions for dropdown using the new async API
       const allPassions = await db.query(
         "SELECT * FROM passions ORDER BY name"
       );
@@ -44,8 +71,81 @@ const VisitsPage: React.FC = () => {
       setPassions(allPassions);
     } catch (error) {
       console.error("Error loading data:", error);
-      setError("Failed to load data");
+      setError("Échec du chargement des données");
     }
+  };
+
+  const applyFiltersAndSort = () => {
+    let result = [...visits];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((visit) => {
+        const passionName = visit.passion_name?.toLowerCase() || "";
+        const visitNotes = visit.notes.toLowerCase();
+        return passionName.includes(query) || visitNotes.includes(query);
+      });
+    }
+
+    if (startDate) {
+      const startTimestamp = new Date(startDate).getTime();
+      result = result.filter((visit) => {
+        const visitDate = new Date(visit.date).getTime();
+        return visitDate >= startTimestamp;
+      });
+    }
+
+    if (endDate) {
+      const endTimestamp = new Date(endDate);
+      endTimestamp.setDate(endTimestamp.getDate() + 1);
+      result = result.filter((visit) => {
+        const visitDate = new Date(visit.date).getTime();
+        return visitDate < endTimestamp.getTime();
+      });
+    }
+
+    result.sort((a, b) => {
+      if (sortField === "passion_name") {
+        const nameA = a.passion_name?.toLowerCase() || "";
+        const nameB = b.passion_name?.toLowerCase() || "";
+        return sortDirection === "asc"
+          ? nameA.localeCompare(nameB)
+          : nameB.localeCompare(nameA);
+      } else {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+      }
+    });
+
+    setFilteredVisits(result);
+  };
+
+  const getCurrentPageData = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredVisits.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  const toggleSortDirection = () => {
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+  };
+
+  const changeSortField = (field: "passion_name" | "date") => {
+    if (sortField === field) {
+      toggleSortDirection();
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStartDate("");
+    setEndDate("");
+    setShowDateFilter(false);
+    setSortField("date");
+    setSortDirection("desc");
   };
 
   const resetForm = () => {
@@ -73,7 +173,7 @@ const VisitsPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passionId || !date) {
-      setError("Passion and date are required");
+      setError("La passion et la date sont requises");
       return;
     }
 
@@ -103,12 +203,12 @@ const VisitsPage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error("Error saving visit:", error);
-      setError("Failed to save visit");
+      setError("Échec de l'enregistrement de la visite");
     }
   };
 
   const handleDeleteVisit = async (visit: Visit) => {
-    if (!confirm(`Are you sure you want to delete this visit?`)) {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer cette visite?`)) {
       return;
     }
 
@@ -118,7 +218,7 @@ const VisitsPage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error("Error deleting visit:", error);
-      setError("Failed to delete visit");
+      setError("Échec de la suppression de la visite");
     }
   };
 
@@ -130,7 +230,7 @@ const VisitsPage: React.FC = () => {
     },
     {
       key: "date",
-      header: "Visit Date",
+      header: "Date de Visite",
       render: (visit: Visit) => new Date(visit.date).toLocaleDateString(),
       sortable: true,
     },
@@ -146,7 +246,7 @@ const VisitsPage: React.FC = () => {
     },
     {
       key: "next_visit_date",
-      header: "Next Visit",
+      header: "Prochaine Visite",
       render: (visit: Visit) =>
         visit.next_visit_date
           ? new Date(visit.next_visit_date).toLocaleDateString()
@@ -162,7 +262,7 @@ const VisitsPage: React.FC = () => {
         size="sm"
         className="p-1"
         onClick={() => handleEditVisit(visit)}
-        aria-label="Edit visit"
+        aria-label="Modifier la visite"
       >
         <Edit size={16} />
       </Button>
@@ -171,7 +271,7 @@ const VisitsPage: React.FC = () => {
         size="sm"
         className="p-1"
         onClick={() => handleDeleteVisit(visit)}
-        aria-label="Delete visit"
+        aria-label="Supprimer la visite"
       >
         <Trash2 size={16} />
       </Button>
@@ -181,7 +281,7 @@ const VisitsPage: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Visits</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Visites</h1>
         <Button
           variant="primary"
           icon={<Plus size={16} />}
@@ -190,7 +290,7 @@ const VisitsPage: React.FC = () => {
             setShowForm(!showForm);
           }}
         >
-          {showForm ? "Cancel" : "Add Visit"}
+          {showForm ? "Annuler" : "Ajouter une Visite"}
         </Button>
       </div>
 
@@ -203,8 +303,112 @@ const VisitsPage: React.FC = () => {
         </div>
       )}
 
+      <Card className="mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Rechercher
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+                placeholder="Rechercher par passion ou notes"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Trier par
+              </label>
+              <button
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                onClick={() => setShowDateFilter(!showDateFilter)}
+              >
+                <Calendar size={16} className="mr-1" />
+                {showDateFilter ? "Masquer filtre date" : "Filtrer par date"}
+              </button>
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                variant={sortField === "passion_name" ? "primary" : "secondary"}
+                className="flex-1 flex justify-center items-center"
+                onClick={() => changeSortField("passion_name")}
+              >
+                {sortField === "passion_name" &&
+                  (sortDirection === "asc" ? (
+                    <SortAsc size={16} className="mr-2" />
+                  ) : (
+                    <SortDesc size={16} className="mr-2" />
+                  ))}
+                Passion
+              </Button>
+
+              <Button
+                variant={sortField === "date" ? "primary" : "secondary"}
+                className="flex-1 flex justify-center items-center"
+                onClick={() => changeSortField("date")}
+              >
+                {sortField === "date" &&
+                  (sortDirection === "asc" ? (
+                    <SortAsc size={16} className="mr-2" />
+                  ) : (
+                    <SortDesc size={16} className="mr-2" />
+                  ))}
+                Date
+              </Button>
+
+              <Button
+                variant="secondary"
+                className="flex-shrink-0"
+                onClick={clearFilters}
+              >
+                Réinitialiser
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {showDateFilter && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date de début
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date de fin
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
+              />
+            </div>
+          </div>
+        )}
+      </Card>
+
       {showForm && (
-        <Card className="mb-6" title={editing ? "Edit Visit" : "Add New Visit"}>
+        <Card
+          className="mb-6"
+          title={editing ? "Modifier la Visite" : "Ajouter une Nouvelle Visite"}
+        >
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -218,7 +422,7 @@ const VisitsPage: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#147D9E] focus:border-[#147D9E]"
                     required
                   >
-                    <option value="">Select a passion</option>
+                    <option value="">Sélectionner une passion</option>
                     {passions.map((passion) => (
                       <option key={passion.id} value={passion.id}>
                         {passion.name}
@@ -228,7 +432,7 @@ const VisitsPage: React.FC = () => {
                 </div>
 
                 <Input
-                  label="Visit Date"
+                  label="Date de Visite"
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
@@ -236,7 +440,7 @@ const VisitsPage: React.FC = () => {
                 />
 
                 <Input
-                  label="Next Visit Date (Optional)"
+                  label="Date de Prochaine Visite (Optionnel)"
                   type="date"
                   value={nextVisitDate}
                   onChange={(e) => setNextVisitDate(e.target.value)}
@@ -255,10 +459,10 @@ const VisitsPage: React.FC = () => {
 
             <div className="flex justify-end space-x-2 mt-4">
               <Button type="button" variant="secondary" onClick={resetForm}>
-                Cancel
+                Annuler
               </Button>
               <Button type="submit" variant="primary">
-                {editing ? "Update Visit" : "Save Visit"}
+                {editing ? "Mettre à jour" : "Enregistrer"}
               </Button>
             </div>
           </form>
@@ -267,25 +471,40 @@ const VisitsPage: React.FC = () => {
 
       <Card>
         {visits.length > 0 ? (
-          <DataTable
-            columns={columns}
-            data={visits}
-            keyExtractor={(visit) => visit.id.toString()}
-            actions={visitActions}
-          />
+          <>
+            <div className="mb-2 text-sm text-gray-500">
+              {filteredVisits.length} visite(s) trouvée(s)
+              {(searchQuery || startDate || endDate) && (
+                <span> avec les filtres appliqués</span>
+              )}
+            </div>
+            <DataTable
+              columns={columns}
+              data={getCurrentPageData()}
+              keyExtractor={(visit) => visit.id.toString()}
+              actions={visitActions}
+            />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredVisits.length / itemsPerPage)}
+              onPageChange={setCurrentPage}
+            />
+          </>
         ) : (
           <div className="text-center py-8">
             <ClipboardCheck size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-500 mb-2">
-              No visits yet
+              Aucune visite
             </h3>
-            <p className="text-gray-400 mb-4">Record your first visit</p>
+            <p className="text-gray-400 mb-4">
+              Enregistrez votre première visite
+            </p>
             <Button
               variant="primary"
               icon={<Plus size={16} />}
               onClick={() => setShowForm(true)}
             >
-              Add Visit
+              Ajouter une Visite
             </Button>
           </div>
         )}

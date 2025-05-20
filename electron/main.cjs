@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const isDev = require("electron-is-dev");
@@ -20,6 +20,9 @@ function createWindow() {
       enableRemoteModule: true, // Also enable remote module
     },
   });
+
+  // Remove the menu bar completely
+  mainWindow.setMenu(null);
 
   const startUrl = isDev
     ? "http://localhost:5173"
@@ -51,7 +54,11 @@ function createWindow() {
   db = new Database(dbPath);
 }
 
+// We can also set the app menu to null to ensure no menu appears in any window
 app.whenReady().then(() => {
+  // Set application menu to null to remove it completely
+  Menu.setApplicationMenu(null);
+
   createWindow();
 
   app.on("activate", function () {
