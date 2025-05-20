@@ -8,6 +8,7 @@ import CategoriesPage from "./pages/CategoriesPage";
 import PassionsPage from "./pages/PassionsPage";
 import RendezvousPage from "./pages/RendezvousPage";
 import VisitsPage from "./pages/VisitsPage";
+import NotificationContainer from "./components/NotificationContainer";
 
 function App() {
   const { db, loading, error } = useDatabase();
@@ -54,6 +55,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      <NotificationContainer />
     </BrowserRouter>
   );
 }

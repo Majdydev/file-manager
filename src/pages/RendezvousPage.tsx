@@ -18,7 +18,9 @@ import {
   SortAsc,
   SortDesc,
   Filter,
+  Bell,
 } from "lucide-react";
+import NotificationService from "../services/NotificationService";
 
 const RendezvousPage: React.FC = () => {
   const [rendezvous, setRendezvous] = useState<Rendezvous[]>([]);
@@ -27,6 +29,7 @@ const RendezvousPage: React.FC = () => {
   const [editing, setEditing] = useState<Rendezvous | null>(null);
   const [passionId, setPassionId] = useState("");
   const [date, setDate] = useState("");
+  const [time, setTime] = useState(""); // Add new state for time
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"pending" | "completed" | "canceled">(
     "pending"
@@ -173,6 +176,7 @@ const RendezvousPage: React.FC = () => {
   const resetForm = () => {
     setPassionId("");
     setDate("");
+    setTime(""); // Reset time as well
     setDescription("");
     setStatus("pending");
     setEditing(null);
@@ -182,7 +186,16 @@ const RendezvousPage: React.FC = () => {
   const handleEditRendezvous = (rendez: Rendezvous) => {
     setEditing(rendez);
     setPassionId(rendez.passion_id.toString());
-    setDate(new Date(rendez.date).toISOString().split("T")[0]);
+
+    // Split datetime into date and time components
+    const rendezDate = new Date(rendez.date);
+    setDate(rendezDate.toISOString().split("T")[0]);
+
+    // Format time as HH:MM
+    const hours = rendezDate.getHours().toString().padStart(2, "0");
+    const minutes = rendezDate.getMinutes().toString().padStart(2, "0");
+    setTime(`${hours}:${minutes}`);
+
     setDescription(rendez.description);
     setStatus(rendez.status as "pending" | "completed" | "canceled");
     setShowForm(true);
@@ -190,30 +203,56 @@ const RendezvousPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passionId || !date) {
-      setError("La passion et la date sont requises");
+    if (!passionId || !date || !time) {
+      setError("La passion, la date et l'heure sont requises");
       return;
     }
 
     try {
       const db = getDb();
 
+      // Combine date and time into a single ISO datetime string
+      const dateTimeStr = `${date}T${time}:00`;
+
       if (editing) {
+        const oldRendezvous = await db.get(
+          "SELECT * FROM rendezvous WHERE id = ?",
+          [editing.id]
+        );
+        const dateChanged =
+          new Date(oldRendezvous.date).toISOString() !==
+          new Date(dateTimeStr).toISOString();
+
+        const notificationState = dateChanged
+          ? "pending"
+          : oldRendezvous.notification_state;
+
         await db.execute(
           `
           UPDATE rendezvous
-          SET passion_id = ?, date = ?, description = ?, status = ?
+          SET passion_id = ?, date = ?, description = ?, status = ?, notification_state = ?
           WHERE id = ?
         `,
-          [passionId, date, description, status, editing.id]
+          [
+            passionId,
+            dateTimeStr,
+            description,
+            status,
+            notificationState,
+            editing.id,
+          ]
         );
+
+        if (dateChanged) {
+          await NotificationService.resetNotificationState(editing.id);
+        }
       } else {
         await db.execute(
           `
-          INSERT INTO rendezvous (passion_id, date, description, status)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO rendezvous (passion_id, date, description, status, notification_state)
+          VALUES (?, ?, ?, ?, ?)
         `,
-          [passionId, date, description, status]
+          [passionId, dateTimeStr, description, status, "pending"]
         );
       }
 
@@ -221,7 +260,7 @@ const RendezvousPage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error("Error saving rendezvous:", error);
-      setError("Failed to save rendezvous");
+      setError("Échec de l'enregistrement du rendez-vous");
     }
   };
 
@@ -254,6 +293,16 @@ const RendezvousPage: React.FC = () => {
     } catch (error) {
       console.error("Error updating status:", error);
       setError("Failed to update status");
+    }
+  };
+
+  const handleConfirmNotification = async (rendez: Rendezvous) => {
+    try {
+      await NotificationService.confirmNotification(rendez.id);
+      await loadData();
+    } catch (error) {
+      console.error("Error confirming notification:", error);
+      setError("Échec de la confirmation de la notification");
     }
   };
 
@@ -302,6 +351,33 @@ const RendezvousPage: React.FC = () => {
       },
       sortable: true,
     },
+    {
+      key: "notification_state",
+      header: "Notification",
+      render: (rendez: Rendezvous) => {
+        const stateText = {
+          pending: "En attente",
+          sent: "Confirmée",
+          failed: "Échec",
+        };
+
+        const stateColors = {
+          pending: "bg-yellow-100 text-yellow-800",
+          sent: "bg-green-100 text-green-800",
+          failed: "bg-red-100 text-red-800",
+        };
+
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs ${
+              stateColors[rendez.notification_state as keyof typeof stateColors]
+            }`}
+          >
+            {stateText[rendez.notification_state as keyof typeof stateText]}
+          </span>
+        );
+      },
+    },
   ];
 
   const rendezvousActions = (rendez: Rendezvous) => (
@@ -346,6 +422,19 @@ const RendezvousPage: React.FC = () => {
       >
         <Trash2 size={16} />
       </Button>
+      {rendez.status === "pending" &&
+        rendez.notification_state === "pending" && (
+          <Button
+            variant="success"
+            size="sm"
+            className="p-1"
+            onClick={() => handleConfirmNotification(rendez)}
+            aria-label="Confirmer la notification"
+            title="Confirmer la notification"
+          >
+            <Bell size={16} />
+          </Button>
+        )}
     </div>
   );
 
@@ -528,13 +617,29 @@ const RendezvousPage: React.FC = () => {
                   </select>
                 </div>
 
-                <Input
-                  label="Date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
-                />
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Heure
+                  </label>
+                  <Input
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div>
